@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binomial vs Gaussian Distribution</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #controls {
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        #plot-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+        #plot {
+            width: 65%;
+            height: 600px;
+            min-width: 300px;
+        }
+        #formula {
+            width: 30%;
+            max-width: 400px;
+            min-width: 280px;
+            margin-left: 20px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border: 1px solid #ccc;
+            overflow-y: auto;
+            max-height: 600px;
+        }
+        h2 {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+        label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Binomial vs Gaussian Distribution</h1>
+    <div id="controls">
+        <label>
+            Number of Trials (n):
+            <input type="number" id="nInput" min="1" max="1000" step="1" value="10">
+        </label>
+        <label>
+            Probability of Success (p):
+            <input type="range" id="pSlider" min="0.01" max="1.0" step="0.01" value="0.5">
+            <span id="pValue">0.5</span>
+        </label>
+        <label>
+            Value of k:
+            <input type="number" id="kInput" min="0" value="5">
+        </label>
+        <label>
+            Lock X-Axis:
+            <input type="checkbox" id="lockXAxis">
+        </label>
+        <label>
+            Lock Y-Axis:
+            <input type="checkbox" id="lockYAxis">
+        </label>
+    </div>
+    <div id="plot-container">
+        <div id="plot"></div>
+        <div id="formula">
+            <h2>Formulas and Calculations</h2>
+            <div id="binomialFormula"></div>
+            <div id="gaussianPDFFormula"></div>
+            <div id="gaussianCDFFormula"></div>
+        </div>
+    </div>
+
+    <script>
+        // Factorial Function
+        function factorial(x) {
+            return x <= 1 ? 1 : x * factorial(x - 1);
+        }
+
+        // Binomial Probability
+        function binomialProbability(n, k, p) {
+            const binomialCoefficient = factorial(n) / (factorial(k) * factorial(n - k));
+            return binomialCoefficient * Math.pow(p, k) * Math.pow(1 - p, n - k);
+        }
+
+        // Cumulative Binomial Probability
+        function cumulativeBinomial(n, k, p) {
+            let sum = 0;
+            for (let i = 0; i <= k; i++) {
+                sum += binomialProbability(n, i, p);
+            }
+            return sum;
+        }
+
+        // Gaussian PDF
+        function gaussianPDF(n, p, x) {
+            const mu = n * p;
+            const sigma = Math.sqrt(n * p * (1 - p));
+            return (1 / (Math.sqrt(2 * Math.PI) * sigma)) * Math.exp(-Math.pow(x - mu, 2) / (2 * sigma * sigma));
+        }
+
+        // Gaussian CDF Approximation using Error Function (erf)
+        function erf(x) {
+            const sign = x < 0 ? -1 : 1;
+            x = Math.abs(x);
+            const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741;
+            const a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
+            const t = 1 / (1 + p * x);
+            const y = (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t;
+            return sign * (1 - y * Math.exp(-x * x));
+        }
+
+        function gaussianCDF(n, p, x) {
+            const mu = n * p;
+            const sigma = Math.sqrt(n * p * (1 - p));
+            return (1 / 2) * (1 + erf((x - mu) / (Math.sqrt(2) * sigma)));
+        }
+
+        function updatePlot() {
+            const n = parseInt(document.getElementById("nInput").value);
+            const p = parseFloat(document.getElementById("pSlider").value);
+            const k = parseInt(document.getElementById("kInput").value);
+            const lockX = document.getElementById("lockXAxis").checked;
+            const lockY = document.getElementById("lockYAxis").checked;
+
+            // Adjust k input range
+            const kInput = document.getElementById("kInput");
+            kInput.max = n;
+            if (k > n) kInput.value = n;
+
+            document.getElementById("pValue").textContent = p.toFixed(2);
+
+            const kValues = Array.from({ length: n + 1 }, (_, i) => i);
+            const binomialProbs = kValues.map(k => binomialProbability(n, k, p));
+            const gaussianProbs = kValues.map(k => gaussianPDF(n, p, k));
+
+            // Update Graph
+            const layout = {
+                title: "Binomial vs Gaussian Distribution",
+                xaxis: {
+                    title: "k (Number of Successes)",
+                    range: lockX ? [0, n] : undefined
+                },
+                yaxis: {
+                    title: "Probability",
+                    range: lockY ? [0, Math.max(...binomialProbs.concat(gaussianProbs)) * 1.1] : undefined
+                },
+                legend: { orientation: "h", x: 0, y: -0.2 }
+            };
+
+            Plotly.newPlot("plot", [
+                { x: kValues, y: binomialProbs, type: "bar", name: "Binomial Distribution" },
+                { x: kValues, y: gaussianProbs, type: "scatter", mode: "lines", name: "Gaussian PDF" }
+            ], layout);
+
+            // Update Formulas
+            const mu = n * p;
+            const sigma = Math.sqrt(n * p * (1 - p));
+            const binomialCumulative = cumulativeBinomial(n, k, p).toFixed(4);
+            const gaussianPDFVal = gaussianPDF(n, p, k).toFixed(4);
+            const gaussianCDFVal = gaussianCDF(n, p, k).toFixed(4);
+
+            document.getElementById("binomialFormula").innerHTML = `
+                \\[
+                P(X \\leq k) = \\sum_{i=0}^{k} \\binom{n}{i} p^i (1-p)^{n-i} = ${binomialCumulative}
+                \\]`;
+            document.getElementById("gaussianPDFFormula").innerHTML = `
+                \\[
+                f(x) = \\frac{1}{\\sqrt{2\\pi \\sigma^2}} e^{-\\frac{(x-\\mu)^2}{2\\sigma^2}} \\quad = ${gaussianPDFVal}
+                \\]`;
+            document.getElementById("gaussianCDFFormula").innerHTML = `
+                \\[
+                F(x) = \\frac{1}{2} \\left[1 + \\text{erf}\\left(\\frac{x-\\mu}{\\sqrt{2}\\sigma}\\right)\\right] \\quad = ${gaussianCDFVal}
+                \\]`;
+            MathJax.typeset();
+        }
+
+        document.getElementById("nInput").addEventListener("input", updatePlot);
+        document.getElementById("pSlider").addEventListener("input", updatePlot);
+        document.getElementById("kInput").addEventListener("input", updatePlot);
+        document.getElementById("lockXAxis").addEventListener("change", updatePlot);
+        document.getElementById("lockYAxis").addEventListener("change", updatePlot);
+        updatePlot();
+    </script>
+</body>
+</html>
